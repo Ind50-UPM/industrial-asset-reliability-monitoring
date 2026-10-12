@@ -138,3 +138,35 @@ For interpretation, prefer recall-oriented and temporal-overlap metrics over
 raw precision-like fields, because the current registry alignment logic can
 inflate precision through repeated matches against the same reference context.
 
+
+Electrical evidence extension
+-----------------------------
+
+Model D accepts the additional command-response and fourth-order transient
+components documented in ``src/Model_D/README.md``. The scientific transient
+indicator is the positive largest eigenvalue of a reference-normalized
+fourth-order scatter, raised to the power 1/4. VQE is an optional approximation
+of the dominant direction, exported separately from the exact indicator.
+Observers and references must be fitted on explicit nominal partitions before
+pipeline evaluation. Missing command/reference support remains explicit.
+
+.. automodule:: iabm_incidents.electrical
+   :members:
+   :show-inheritance:
+
+Post hoc event interpretation
+-----------------------------
+
+See :doc:`event_frequency_interpretation` for the optional event-conditioned
+frequency-response stage, its FIR/Bode equations, scientific interpretation
+limits and exported artifacts. This stage is separate from reliability scoring
+and does not change detected episodes.
+
+Four-level ablation
+-------------------
+
+See :doc:`model_d_ablation` for the matched M0--M3 protocol and
+:doc:`model_d_ablation_results` for the executed focused-study results.
+The comparison separates behavioral evidence, command residuals, exact
+fourth-order evidence and its VQE approximation, with explicit validation
+provenance and unavailable metrics.

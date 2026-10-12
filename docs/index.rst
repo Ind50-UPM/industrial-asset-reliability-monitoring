@@ -29,6 +29,9 @@ Quick links
 - :doc:`model_b`
 - :doc:`model_c`
 - :doc:`model_d`
+- :doc:`event_frequency_interpretation`
+- :doc:`model_d_ablation`
+- :doc:`model_d_ablation_results`
 
 .. toctree::
    :maxdepth: 2
@@ -46,3 +49,6 @@ Quick links
    model_b
    model_c
    model_d
+   event_frequency_interpretation
+   model_d_ablation
+   model_d_ablation_results

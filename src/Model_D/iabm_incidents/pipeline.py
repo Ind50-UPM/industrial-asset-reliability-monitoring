@@ -21,7 +21,10 @@ from dataclasses import dataclass
 import pandas as pd
 
 from .config import ModelDConfig
+from .electrical import CommandResponseObserver, TransientConcentration
 from .episodes import IncidentEpisodeBuilder
+from .interpretation import (EventFrequencyResponseInterpreter, EventFrequencyInterpretationResult,
+                             FrequencyInterpretationConfig)
 from .exposure import ExposureConfig, derive_observation_periods
 from .baseline import fit_nominal_baseline
 from .features import build_episode_features
@@ -43,12 +46,15 @@ class IndicatorPipelineResult:
             final aggregate deviation score.
         episodes: Incident episodes segmented from scored windows and enriched
             with aggregate episode-level descriptors when available.
+        event_interpretation: Optional separate post hoc FIR/Bode artifacts.
+            These never enter window scores or change episode detection.
     """
 
     observation_periods: pd.DataFrame
     windows: pd.DataFrame
     window_scores: pd.DataFrame
     episodes: pd.DataFrame
+    event_interpretation: EventFrequencyInterpretationResult | None = None
 
 
 class IndicatorPipeline:
@@ -57,6 +63,11 @@ class IndicatorPipeline:
     Args:
         config: Full ``Model_D`` configuration. When omitted, the default
             in-package configuration is used.
+        command_observer: Optional fitted nominal command-response observer.
+        transient_model: Optional fitted fourth-order reference, provided with
+            the observer. Both remain frozen during ``run``.
+        interpretation_config: Opt-in event-conditioned frequency-response
+            interpretation, executed after detection. Omit to avoid post hoc work.
 
     Notes:
         The class is intentionally state-light. It only keeps the resolved
@@ -65,7 +76,21 @@ class IndicatorPipeline:
         asset-specific batches.
     """
 
-    def __init__(self, config: ModelDConfig | None = None) -> None:
+    def __init__(
+        self, config: ModelDConfig | None = None, *,
+        command_observer: CommandResponseObserver | None = None,
+        transient_model: TransientConcentration | None = None,
+        interpretation_config: FrequencyInterpretationConfig | None = None,
+    ) -> None:
+        if (command_observer is None) != (transient_model is None):
+            raise ValueError("Provide both frozen electrical models or neither")
+        if command_observer is not None and command_observer.config != transient_model.config:
+            raise ValueError("Electrical models must share the telemetry contract")
+        if interpretation_config is not None and transient_model is None:
+            raise ValueError("Event interpretation requires frozen electrical models")
+        self._interpretation_config = interpretation_config
+        self._command_observer = command_observer
+        self._transient_model = transient_model
         self._config = config or ModelDConfig()
         self._builder = IncidentEpisodeBuilder(self._config)
         self._scorer = WeightedDeviationScorer(self._config.weights)
@@ -89,7 +114,10 @@ class IndicatorPipeline:
                 analysis windows.
             registry: Optional canonical incident registry used to mark exposure
                 periods that should be excluded from nominal baseline fitting.
-            analogue: Optional analog telemetry table. When omitted, the method
+            analogue: When electrical models are supplied, aligned timestamped
+                telemetry containing three phases and the actual controller state
+                according to ``ElectricalConfig``. Otherwise optional analog
+                telemetry. When omitted, the method
                 falls back to the ``sequences`` dataframe as the observable time
                 base.
             digital: Optional digital telemetry table. When omitted, the method
@@ -127,6 +155,14 @@ class IndicatorPipeline:
         )
         if window_scores.empty:
             return IndicatorPipelineResult(observation_periods, windows, window_scores, pd.DataFrame())
+        if self._transient_model is not None:
+            if analogue is None:
+                raise ValueError("Electrical extension requires aligned analogue command telemetry")
+            residuals = self._command_observer.residuals(analogue)
+            electrical = self._transient_model.score_windows(residuals, window_scores)
+            keys = ['window_id', 'asset_id']
+            replace = [c for c in electrical if c in window_scores and c not in keys]
+            window_scores = window_scores.drop(columns=replace).merge(electrical, on=keys, how='left', validate='one_to_one')
         normal_mask = window_scores.get('semantic_status', pd.Series(dtype=str)).ne('ANOMALOUS')
         self._scorer.fit(window_scores[normal_mask])
         window_scores = window_scores.copy()
@@ -135,7 +171,12 @@ class IndicatorPipeline:
         episode_features = build_episode_features(episodes, window_scores)
         if not episode_features.empty and not episodes.empty:
             episodes = episodes.merge(episode_features, on=['episode_id', 'asset_id'], how='left')
-        return IndicatorPipelineResult(observation_periods, windows, window_scores, episodes)
+        interpretation = None
+        if self._interpretation_config is not None:
+            interpretation = EventFrequencyResponseInterpreter(
+                self._transient_model, self._interpretation_config,
+            ).explain(episodes=episodes, window_scores=window_scores, residuals=residuals)
+        return IndicatorPipelineResult(observation_periods, windows, window_scores, episodes, interpretation)
 
     @staticmethod
     def _merge_sources(sequences: pd.DataFrame, assignments: pd.DataFrame) -> pd.DataFrame:

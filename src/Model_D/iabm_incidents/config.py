@@ -28,6 +28,8 @@ class DeviationWeights:
         consumption: Weight assigned to analogue consumption deviation.
         state_error: Weight assigned to semantic or state error signals.
         mode: Weight assigned to operating-mode divergence.
+        command_response: Weight assigned to command-response residual norms.
+        transient_concentration: Weight assigned to fourth-order excess evidence.
     """
 
     sequence: float = 1.0
@@ -37,6 +39,8 @@ class DeviationWeights:
     consumption: float = 1.0
     state_error: float = 1.0
     mode: float = 1.0
+    command_response: float = 1.0
+    transient_concentration: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -175,6 +179,8 @@ def _load_weights_config(payload: dict[str, Any]) -> DeviationWeights:
         consumption=float(payload.get("consumption", 1.0)),
         state_error=float(payload.get("state_error", 1.0)),
         mode=float(payload.get("mode", 1.0)),
+        command_response=float(payload.get("command_response", 1.0)),
+        transient_concentration=float(payload.get("transient_concentration", 1.0)),
     )
 
 

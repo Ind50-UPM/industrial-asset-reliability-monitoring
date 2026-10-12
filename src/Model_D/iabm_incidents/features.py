@@ -27,6 +27,10 @@ FEATURE_COLUMNS = [
     "mean_state_error_rate",
     "max_mode_divergence",
     "mean_mode_divergence",
+    "max_command_response_deviation",
+    "mean_command_response_deviation",
+    "max_transient_concentration",
+    "mean_transient_concentration",
     "dominant_family",
     "mixed_family_evidence",
     "max_state_word_diversity",
@@ -84,6 +88,10 @@ def build_episode_features(episodes: pd.DataFrame, window_scores: pd.DataFrame) 
             "mean_state_error_rate": _agg(episode_windows, "state_error_rate", "mean"),
             "max_mode_divergence": _agg(episode_windows, "mode_divergence", "max"),
             "mean_mode_divergence": _agg(episode_windows, "mode_divergence", "mean"),
+            "max_command_response_deviation": _agg(episode_windows, "command_response_deviation", "max"),
+            "mean_command_response_deviation": _agg(episode_windows, "command_response_deviation", "mean"),
+            "max_transient_concentration": _agg(episode_windows, "transient_concentration", "max"),
+            "mean_transient_concentration": _agg(episode_windows, "transient_concentration", "mean"),
             "dominant_family": _dominant_family(episode_windows),
             "mixed_family_evidence": _mixed_family_evidence(episode_windows),
             "max_state_word_diversity": _agg(episode_windows, "state_word_diversity", "max"),
@@ -103,8 +111,12 @@ def build_episode_features(episodes: pd.DataFrame, window_scores: pd.DataFrame) 
             "mean_off_nominal_state_fraction": _agg(episode_windows, "off_nominal_state_fraction", "mean"),
             "mean_word_regime_shift_score": _agg(episode_windows, "word_regime_shift_score", "mean"),
         }
+        for column in episode_windows.columns:
+            if column.startswith("command_response_signed_") or column == "command_response_imbalance":
+                row["mean_" + column] = _agg(episode_windows, column, "mean")
         rows.append(row)
-    return pd.DataFrame(rows, columns=FEATURE_COLUMNS)
+    extra = sorted({key for row in rows for key in row} - set(FEATURE_COLUMNS))
+    return pd.DataFrame(rows, columns=FEATURE_COLUMNS + extra)
 
 
 def _slice_episode_windows(window_scores: pd.DataFrame, window_ids: tuple[str, ...], episode: pd.Series) -> pd.DataFrame:

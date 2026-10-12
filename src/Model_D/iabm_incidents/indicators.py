@@ -21,6 +21,7 @@ def fit_indicator_baseline(frame: pd.DataFrame, columns: list[str] | None = None
     candidate_columns = columns or [
         'sequence_divergence', 'duration_drift', 'recurrence_excess', 'persistence_excess',
         'consumption_deviation', 'state_error_rate', 'mode_divergence',
+        'command_response_deviation', 'transient_concentration',
     ]
     nominal = frame.copy()
     if 'semantic_status' in nominal.columns:
@@ -129,6 +130,15 @@ def _compute_asset_window_indicators(
             if column not in indicator_arrays:
                 continue
             row[column] = float(indicator_arrays[column][mask].mean() - baseline_value)
+        # Electrical scores already encode a frozen nominal reference.
+        # Preserve raw nonnegative evidence and missing support, without recentering.
+        for column in ("command_response_deviation", "transient_concentration"):
+            if column in asset_rows:
+                values = pd.to_numeric(asset_rows.loc[mask, column], errors="coerce")
+                row[column] = float(values.max() if column == "transient_concentration" else values.mean())
+        for column in asset_rows.columns:
+            if column.startswith("command_response_signed_") or column == "command_response_imbalance":
+                row[column] = float(pd.to_numeric(asset_rows.loc[mask, column], errors="coerce").mean())
         rows.append(row)
     return rows
 

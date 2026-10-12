@@ -12,8 +12,10 @@ import json
 import pandas as pd
 
 from .config import ModelDConfig
+from .electrical import CommandResponseObserver, TransientConcentration
 from .episodes import IncidentEpisodeBuilder
 from .evaluation import EpisodeEvaluator
+from .interpretation import EventFrequencyInterpretationResult, FrequencyInterpretationConfig
 from .metrics import summarize_episode_metrics
 from .pipeline import IndicatorPipeline
 from .registry import IncidentRegistry
@@ -30,15 +32,21 @@ class ExperimentResult:
     registry_matches: pd.DataFrame
     family_summary: pd.DataFrame
     lead_time_summary: pd.DataFrame
+    event_interpretation: EventFrequencyInterpretationResult | None = None
 
 
 class ModelDExperimentRunner:
     """Run comparative experiments for semantic and indicator-driven detection."""
 
-    def __init__(self, config: ModelDConfig | None = None) -> None:
+    def __init__(
+        self, config: ModelDConfig | None = None, *,
+        command_observer: CommandResponseObserver | None = None,
+        transient_model: TransientConcentration | None = None,
+        interpretation_config: FrequencyInterpretationConfig | None = None,
+    ) -> None:
         self._config = config or ModelDConfig()
         self._builder = IncidentEpisodeBuilder(self._config)
-        self._pipeline = IndicatorPipeline(self._config)
+        self._pipeline = IndicatorPipeline(self._config, command_observer=command_observer, transient_model=transient_model, interpretation_config=interpretation_config)
         self._evaluator = EpisodeEvaluator()
         self._registry = IncidentRegistry()
 
@@ -73,7 +81,7 @@ class ModelDExperimentRunner:
             analogue=analogue,
             digital=digital,
         )
-        return self._assemble_result("indicators", pipeline_result.episodes, pipeline_result.window_scores, registry)
+        return self._assemble_result("indicators", pipeline_result.episodes, pipeline_result.window_scores, registry, pipeline_result.event_interpretation)
 
     def run_comparison(
         self,
@@ -121,6 +129,10 @@ class ModelDExperimentRunner:
                 frame.to_csv(path, index=False)
                 written[f"{mode}_{label}"] = path
 
+            if result.event_interpretation is not None:
+                for label, path in result.event_interpretation.export(mode_prefix / "event_interpretation").items():
+                    written[f"{mode}_interpretation_{label}"] = path
+
         report_path = output_path / "experiment_report.html"
         report_path.write_text(self._build_html_report(results, comparison_summary), encoding="utf-8")
         written["html_report"] = report_path
@@ -145,13 +157,14 @@ class ModelDExperimentRunner:
         episodes: pd.DataFrame,
         window_scores: pd.DataFrame,
         registry: pd.DataFrame | None,
+        event_interpretation: EventFrequencyInterpretationResult | None = None,
     ) -> ExperimentResult:
         normalized_registry = self._registry.normalize(registry) if registry is not None else pd.DataFrame()
         matches = self._evaluator.match(normalized_registry, episodes) if not normalized_registry.empty else pd.DataFrame()
         evaluation_summary = self._evaluator.summarize(normalized_registry, episodes) if not normalized_registry.empty else pd.DataFrame()
         family_summary = summarize_episode_metrics(episodes)
         lead_time_summary = self._lead_time_summary(matches)
-        return ExperimentResult(mode, episodes, window_scores, evaluation_summary, matches, family_summary, lead_time_summary)
+        return ExperimentResult(mode, episodes, window_scores, evaluation_summary, matches, family_summary, lead_time_summary, event_interpretation)
 
     @staticmethod
     def _lead_time_summary(matches: pd.DataFrame) -> pd.DataFrame:

@@ -20,6 +20,8 @@ INDICATOR_COLUMNS = {
     "consumption_deviation": "consumption",
     "state_error_rate": "state_error",
     "mode_divergence": "mode",
+    "command_response_deviation": "command_response",
+    "transient_concentration": "transient_concentration",
 }
 PREWINDOWED_COLUMNS = {"window_start", "window_end", "data_coverage", "sequence_count", "active_sequence_count"}
 TIME_COLUMN_ALIASES = {
@@ -44,6 +46,8 @@ class WindowIndicators:
     consumption_deviation: float
     state_error_rate: float
     mode_divergence: float
+    command_response_deviation: float = 0.0
+    transient_concentration: float = 0.0
 
 
 def compute_deviation_score(frame: pd.DataFrame, weights: DeviationWeights) -> pd.Series:
@@ -266,6 +270,11 @@ def _summarize_window(
         for column in INDICATOR_COLUMNS
         if column in active_rows.columns
     }
+
+    # Precomputed transient subwindows retain their strongest concentration;
+    # command-response magnitudes retain duration-weighted aggregation.
+    if "transient_concentration" in active_rows:
+        weighted["transient_concentration"] = float(pd.to_numeric(active_rows["transient_concentration"], errors="coerce").max())
 
     if "semantic_status" in active_rows.columns:
         semantic_series = active_rows["semantic_status"].fillna("NORMAL")

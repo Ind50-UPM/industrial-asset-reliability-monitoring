@@ -10,8 +10,13 @@ packages = [{include = "iabm_incidents"}]
 [tool.poetry.dependencies]
 python = "^3.10"
 pandas = "^2.1.0"
+numpy = ">=1.24,<3"
+matplotlib = {version = ">=3.7,<4", optional = true}
 pyarrow = "^14.0.0"
 openpyxl = "^3.1.0"
+
+[tool.poetry.extras]
+analysis = ["matplotlib"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
