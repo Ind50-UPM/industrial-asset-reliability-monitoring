@@ -48,3 +48,16 @@ Generated XGBoost artifacts and metrics were intentionally left out of this comm
   sources. Unavailable independent metrics remain unavailable, not zero.
 - Documented negative risk results, identical exact/VQE decisions, unstable
   projection peaks and the inherited duration-splitting limitation in Sphinx.
+
+### One multiscale Model D sensitivity
+
+- Added one prespecified 15-min/1-h/6-h/24-h M0–M3 sensitivity on a constant
+  15-minute decision grid, with frozen primary electrical models/circuit budget,
+  common endpoint support and a fixed risk horizon-purge boundary.
+- Kept retrospective reference eligibility separate from the full forecasting
+  target registry, preserving comparable cohorts without dropping future labels.
+- Executed the real-data sensitivity and exported English reports, scientific
+  figures, source/support audits and complete per-arm evidence. Verified all
+  41 primary artifact files remain unchanged.
+- Documented marked scale dependence, sparse short-window support, identical
+  exact/VQE decisions and persistent localization/risk limitations in Sphinx.

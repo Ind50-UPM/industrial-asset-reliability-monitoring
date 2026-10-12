@@ -32,6 +32,8 @@ Quick links
 - :doc:`event_frequency_interpretation`
 - :doc:`model_d_ablation`
 - :doc:`model_d_ablation_results`
+- :doc:`model_d_multiscale`
+- :doc:`model_d_multiscale_results`
 
 .. toctree::
    :maxdepth: 2
@@ -52,3 +54,5 @@ Quick links
    event_frequency_interpretation
    model_d_ablation
    model_d_ablation_results
+   model_d_multiscale
+   model_d_multiscale_results

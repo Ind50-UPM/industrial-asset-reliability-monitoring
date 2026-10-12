@@ -173,13 +173,19 @@ class FourLevelAblationRunner:
 
     def run(self, *, indicators: pd.DataFrame, incidents: pd.DataFrame | None = None,
             independent_incidents: bool = False, maintenance: pd.DataFrame | None = None,
-            healthy_intervals: pd.DataFrame | None = None, study_end: pd.Timestamp | None = None) -> FourLevelAblationResult:
+            healthy_intervals: pd.DataFrame | None = None, study_end: pd.Timestamp | None = None,
+            risk_holdout_start: pd.Timestamp | None = None,
+            evaluation_incidents: pd.DataFrame | None = None) -> FourLevelAblationResult:
         """Evaluate without self-labelled outcomes or held-out calibration.
 
         ``incidents`` use incident_id, asset_id, event_time, incident_family and
         optional documented_start/end, recovery_time. Independent provenance is
         an explicit caller declaration. ``maintenance`` and ``healthy_intervals``
         use asset_id/start_time/end_time. Absence of records is not a negative label.
+        ``risk_holdout_start`` optionally fixes the outcome-horizon purge boundary
+        across different window lengths; omitted preserves the original policy.
+        ``evaluation_incidents`` optionally fixes the retrospective matching
+        cohort separately from the complete future-target registry.
         """
         for name, table in (("maintenance", maintenance), ("healthy intervals", healthy_intervals)):
             if table is not None and not table.empty:
@@ -252,6 +258,7 @@ class FourLevelAblationRunner:
                 independently_calibrated_onset=own_onset, independently_calibrated_recovery=own_recovery,
                 calibration_warning_fraction=float(cal.ge(onset).mean()), calibration_windows=len(cal)))
         references = _normalize_incidents(incidents)
+        matching_references = references if evaluation_incidents is None else _normalize_incidents(evaluation_incidents)
         end = pd.Timestamp(study_end) if study_end is not None else frame.end_time.max()
         if end.tzinfo is not None:
             end = end.tz_convert('UTC').tz_localize(None)
@@ -269,14 +276,14 @@ class FourLevelAblationRunner:
             model_config = replace(self.model_config, detection=detection)
             episodes = self._episodes(test, model_config)
             family = summarize_episode_metrics(episodes)
-            risk_predictions, risk_metrics, risk_coefficients = self._risk(frame, transformed, cols, references, independent_incidents, end)
+            risk_predictions, risk_metrics, risk_coefficients = self._risk(frame, transformed, cols, references, independent_incidents, end, risk_holdout_start)
             levels[level] = AblationLevelResult(test, episodes, family, risk_predictions, risk_metrics, risk_coefficients)
             exposure = (test.end_time+self.model_config.window.step).clip(upper=end)-test.end_time
             exposure_hours = exposure.dt.total_seconds().clip(lower=0)/3600
             observed = float(exposure_hours.sum())
             warnings = int(test.warning.sum())
             warning_hours = float(exposure_hours[test.warning].sum())
-            metrics = _reference_metrics(test, episodes, references, independent_incidents)
+            metrics = _reference_metrics(test, episodes, matching_references, independent_incidents)
             healthy_hours, false_hours = _healthy_warning_hours(test, healthy_intervals, self.model_config.window.step, end)
             summary_rows.append(dict(level=level, test_windows=len(test), observed_decision_hours=observed,
                 warning_windows=warnings, warning_hours_per_100_observed_hours=100*warning_hours/observed if observed else np.nan,
@@ -310,6 +317,7 @@ class FourLevelAblationRunner:
             config=self.config.__dict__, model_d_config=self.model_config.to_dict(), centers=center, scales=scale,
             common_support_windows=len(frame), reference_status=reference_status,
             phase_windows={k:len(v) for k,v in phases.items()}, study_end=end,
+            risk_holdout_start=risk_holdout_start, evaluation_incident_count=len(matching_references),
             threshold_policy="M3 shares M2" if self.config.share_exact_vqe_threshold else "independent level calibration",
             validation_availability={
                 "maintenance overlap": "available from supplied intervention intervals" if maintenance is not None and not maintenance.empty else "unavailable: no temporally aligned intervention intervals",
@@ -341,8 +349,13 @@ class FourLevelAblationRunner:
                 results.append(episodes)
         return pd.concat(results, ignore_index=True) if results else IncidentEpisodeBuilder(config)._empty_episode_frame()
 
-    def _risk(self, frame, transformed, columns, references, independent, end):
+    def _risk(self, frame, transformed, columns, references, independent, end, holdout_start=None):
         rows, predictions, coefficients = [], [], []
+        cutoff = pd.Timestamp(holdout_start) if holdout_start is not None else frame.loc[frame.phase.eq('test'), 'start_time'].min()
+        if cutoff.tzinfo is not None:
+            cutoff = cutoff.tz_convert('UTC').tz_localize(None)
+        if cutoff > frame.loc[frame.phase.eq('test'), 'start_time'].min() or cutoff < frame.loc[frame.phase.eq('calibration'), 'end_time'].max():
+            raise ValueError('Risk holdout boundary must separate calibration and test evidence')
         for horizon in self.config.risk_horizons_hours:
             predictors = transformed[list(columns)].rename(columns=lambda c: 'feat_'+c)
             data = pd.concat([frame[['asset_id', 'window_id', 'end_time', 'phase']].rename(columns={'end_time':'window_end'}), predictors], axis=1)
@@ -353,7 +366,7 @@ class FourLevelAblationRunner:
                 ends = group.window_end.to_numpy(dtype='datetime64[ns]')
                 target[group.index] = np.searchsorted(times, ends+np.timedelta64(horizon, 'h'), side='right') > np.searchsorted(times, ends, side='right')
             data[f'target_h{horizon}'] = target
-            train = data[data.phase.eq('calibration') & (data.window_end+pd.Timedelta(hours=horizon) <= frame.loc[frame.phase.eq('test'), 'start_time'].min())]
+            train = data[data.phase.eq('calibration') & (data.window_end+pd.Timedelta(hours=horizon) <= cutoff)]
             test = data[data.phase.eq('test') & (data.window_end+pd.Timedelta(hours=horizon) <= end)]
             provenance = 'independent_event_target' if independent else 'weak_reference_proxy_not_physical_failure'
             if references.empty or train.empty or test.empty:

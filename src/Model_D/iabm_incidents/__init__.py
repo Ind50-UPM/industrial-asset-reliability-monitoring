@@ -21,6 +21,7 @@ from .indicators import IndicatorBaseline, compute_window_indicators, fit_indica
 from .interpretation import (EventFrequencyResponseInterpreter, EventFrequencyInterpretationResult,
                              FrequencyInterpretationConfig, residual_delay_taps,
                              residual_frequency_response)
+from .multiscale import (MultiscaleSensitivityConfig, MultiscaleSensitivityResult, MultiscaleSensitivityRunner)
 from .occurrence import OccurrenceModeler
 from .pipeline import IndicatorPipeline, IndicatorPipelineResult
 from .registry import IncidentRecord, IncidentRegistry
@@ -30,6 +31,7 @@ from .taxonomy import DEFAULT_INCIDENT_TAXONOMY, FAMILY_SIGNATURES, FamilySignat
 from .windows import WindowBuildConfig, build_rolling_windows
 
 __all__ = [
+    "MultiscaleSensitivityConfig", "MultiscaleSensitivityResult", "MultiscaleSensitivityRunner",
     "AblationConfig", "AblationLevelResult", "FourLevelAblationResult",
     "FourLevelAblationRunner", "BehavioralWindowEncoder",
     "EventFrequencyResponseInterpreter", "EventFrequencyInterpretationResult",

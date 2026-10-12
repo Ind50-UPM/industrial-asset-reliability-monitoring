@@ -170,3 +170,11 @@ See :doc:`model_d_ablation` for the matched M0--M3 protocol and
 The comparison separates behavioral evidence, command residuals, exact
 fourth-order evidence and its VQE approximation, with explicit validation
 provenance and unavailable metrics.
+
+Multiscale sensitivity
+----------------------
+
+The original ablation is retained as the primary experiment. See
+:doc:`model_d_multiscale` for the single prespecified 15-min/1-h/6-h/24-h
+sensitivity, matched endpoint support and constant decision cadence, and
+:doc:`model_d_multiscale_results` for the executed English assessment.

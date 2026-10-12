@@ -304,3 +304,44 @@ lookback spans; that inherited limitation is explicitly audited.
 
 See the extensive English Sphinx [protocol](../../docs/model_d_ablation.rst)
 and [executed results and assessment](../../docs/model_d_ablation_results.rst).
+
+### One prespecified multiscale sensitivity
+
+The primary 24-hour/hourly study is retained unchanged. A single supplemental
+`MultiscaleSensitivityRunner` compares **15 min, 1 h, 6 h and 24 h**, keeping
+M0–M3 at each scale on one fixed **15-minute decision grid**. It restores the
+original frozen observer/electrical reference and VQE budget. Behavioral
+occupancy references and nominal scaling/thresholds are estimated per window
+length on the original chronological partitions.
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONPATH=src/Model_D \
+  python src/run_model_d_multiscale.py
+# Reuse completed sensitivity evidence; primary outputs are never overwritten:
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONPATH=src/Model_D \
+  python src/run_model_d_multiscale.py --reuse-indicators
+```
+
+The supplemental output is
+`reports/four_level_ablation/multiscale_sensitivity`. It contains the single
+English report, all four scale arms, raw evidence/operators/directions,
+availability audits, fixed-reference/risk comparisons and a SHA-256 manifest
+confirming all **41 primary artifact files remain unchanged**. Cache reuse
+verifies frozen inputs, grid and circuit budget.
+
+The executed common cohort has **271 held-out decisions / 67.75 decision hours**
+(12.83% of scheduled endpoints). Sparse predictions and electrical support make
+short windows unavailable frequently; the masks are preserved, not relaxed.
+For M2/M3, warning burden is **56.46%, 9.96%, 2.95% and 71.96%** at the four
+scales. Their decisions agree exactly at every scale, while retrospective peak
+locations and fitted risk probabilities can differ. Every six-hour risk Brier
+score exceeds the prevalence comparator; longer forecast targets remain
+single-class. These results do not select an operationally best window.
+
+The fixed retrospective cohort uses events observed within common-supported
+shortest windows, while forecasting retains the complete future-event registry.
+All levels/scales share forecast endpoints and the same horizon-purge boundary.
+The sensitivity's 24-hour arm is not a replay of the primary hourly arm; its
+cadence and support are different. See the extensive English Sphinx
+[protocol](../../docs/model_d_multiscale.rst) and
+[executed assessment](../../docs/model_d_multiscale_results.rst).
